@@ -13,11 +13,11 @@
   crossorigin=""
 ></script>
 
-<div id="map" style="height: 780px"></div>
+<div id="map" style="height: 580px"></div>
 
 <script>
   // initialize the map and set its view to our chosen geographical coordinates and a zoom level
-  var map = L.map("map").setView([42.67484, 23.33], 16);
+  var map = L.map("map").setView([42.67484, 23.33], 13);
   L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 19,
     attribution:
@@ -28,16 +28,15 @@
   var marker = L.marker([ 42.725624828, 23.300396834]).addTo(map);
 
   <% @pois.each do |poi| %>
-    L.geoJSON( <%= poi["coord"] %>, {
+    L.geoJSON( <%= poi["geometry"] %>, {
       style: function (feature) {
-        return {color: "red"}
-      },
+            return feature.properties && feature.properties.style;
+        },
       coordsToLatLng: function (feature) {
         return [feature[1], feature[0]]
       }
     }).bindPopup(function (layer) {
-        console.log(layer.feature)
-        return layer.feature.properties.description;
+        return '<%= poi["properties"].map{ |k, v| "#{k}: #{v}" }.join(", ") %>';
     }).addTo(map);
   <% end %>
 

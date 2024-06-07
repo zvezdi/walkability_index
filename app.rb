@@ -23,33 +23,26 @@ class App < Sinatra::Base
   end
 
   get '/' do
-    # conn = db_connect
     results = @connection.exec(
       <<~SQL
-        SELECT id, ST_AsGeoJSON(ST_Transform(geom, 4283))::json as coord, object_nam as poi_name, adres as address
-        FROM poi_schools
+        SELECT jsonb_build_object(
+          'type',       'Feature',
+          'id',         id,
+          'geometry',   ST_AsGeoJSON(ST_Transform(geom, 4283))::jsonb,
+          'properties', to_jsonb(row) - 'id' - 'geom'
+        ) as poi FROM (SELECT * FROM poi_schools) row;
       SQL
-      # <<~SQL
-      #   SELECT jsonb_build_object(
-      #     'type',       'Feature',
-      #     'id',         id,
-      #     'geometry',   ST_AsGeoJSON(ST_Transform(geom, 4283))::jsonb,
-      #     'properties', to_jsonb(row) - 'id' - 'geom'
-      #   ) FROM (SELECT * FROM poi_schools) row;
-      # SQL
     )
-    # db_disconnect(conn)
 
-    @pois = results
-    # .map do |poi|
-    #   {
-    #     id: poi["id"],
-    #     coord: JSON.parse(poi["coord"]),
-    #     poi_name: poi["poi_name"],
-    #     address: poi["address"]
-    #   }
-    # end
-    # binding.pry
+    @pois = results.map do |poi|
+      as_hash = JSON.parse(poi["poi"])
+      properties = as_hash["properties"]
+      json_geom = JSON.generate(as_hash["geometry"])
+      as_hash["geometry"] = json_geom
+      as_hash["properties"] = properties
+
+      as_hash
+    end
 
     erb :index
   end
