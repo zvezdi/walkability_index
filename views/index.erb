@@ -1,0 +1,7 @@
+<section>
+  <h1>Chech this <%= @pois.count %> Points Of Interest</h1>
+  <%= erb :map %>
+  <% @pois.each do |poi| %>
+    <p><%= poi %></p>
+  <% end %>
+</section>
