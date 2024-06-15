@@ -1,0 +1,4 @@
+lib/saves
+lib/exploratory
+lib/__pycache__
+.env
