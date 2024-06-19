@@ -1,7 +1,7 @@
 import networkx as nx
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
-from shapely.geometry import Point, MultiLineString
+from shapely.geometry import Point, MultiPoint, LineString, MultiLineString
 
 def build_network_from_geodataframe(gdf, swap_xy = True, save_as = None):
   """
@@ -129,10 +129,10 @@ def visualize_path(G, original_source, original_destination, path_time = None, p
   plt.text(original_destination.x, original_destination.y, "destination", horizontalalignment='center', verticalalignment='center', color='black', fontsize=12)
 
   # Define the zoom region (adjust these values to fit your region of interest)
-  x_min = min(original_source.x, original_destination.x) - 100
-  x_max = max(original_source.x, original_destination.x) + 100
-  y_min = min(original_source.y, original_destination.y) - 100
-  y_max = max(original_source.y, original_destination.y) + 100
+  x_min = min(original_source.x, original_destination.x) - 500
+  x_max = max(original_source.x, original_destination.x) + 500
+  y_min = min(original_source.y, original_destination.y) - 500
+  y_max = max(original_source.y, original_destination.y) + 500
 
   # Set the axis limits to zoom in on the region of interest
   plt.xlim(x_min, x_max)
@@ -152,3 +152,31 @@ def visualize_path(G, original_source, original_destination, path_time = None, p
   if save_as:
     plt.savefig(save_as)
   plt.show()
+
+def compute_accessibility_isochron(network, source_point, cutoff, weight):
+  """
+  "cutoff" is in the metric system of the "weight"
+  """
+  lengths = nx.single_source_dijkstra_path_length(network, (source_point.x, source_point.y), cutoff = cutoff, weight = weight)
+  within_cutoff = { node: dist for node, dist in lengths.items() if dist <= cutoff }
+  boundary_points = []
+
+  # Traverse the edges and find boundary points
+  for node, _dist in within_cutoff.items():
+    for neighbor in network.neighbors(node):
+      if neighbor not in within_cutoff:
+        boundary_points.append(node)
+        break
+
+  # Create boundary to represent the isochron
+  if boundary_points:
+      multipoint = MultiPoint(boundary_points)
+      convex_hull = multipoint.convex_hull
+      if isinstance(convex_hull, LineString):
+          boundary_linestring = convex_hull
+      else:
+          boundary_linestring = LineString(convex_hull.exterior.coords)
+  else:
+      boundary_linestring = None
+
+  return boundary_points, boundary_linestring

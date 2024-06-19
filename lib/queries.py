@@ -29,9 +29,13 @@ RESIDENTIAL_BUILDINGS_LOZENEC_SQL = f"""
 """
 
 POI_PARKS_BUFFERED_LOZENEC_SQL = f"""
-  select pp.geom, subgroup_i as subgroup 
+  select pp.id, pp.geom, subgroup_i as subgroup 
   from zvezdi_work.poi_parks pp, zvezdi_work.gen_lezenec_buf buffered_lozenec
   where st_intersects(pp.geom, buffered_lozenec.geom)
+"""
+
+BUFFER_LOZENEC_SQL = f"""
+  select geom from zvezdi_work.gen_lezenec_buf
 """
 
 def pedestrian_network_query(scope):
@@ -51,3 +55,7 @@ def poi_parks_query(scope):
   if scope == "Lozenec":
     return POI_PARKS_BUFFERED_LOZENEC_SQL
   return POI_PARKS_SQL
+
+def buffered_region_boundary(scope):
+  if scope == "Lozenec":
+    return BUFFER_LOZENEC_SQL

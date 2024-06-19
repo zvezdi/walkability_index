@@ -2,3 +2,4 @@ lib/saves
 lib/exploratory
 lib/__pycache__
 .env
+lib/venv_geo
