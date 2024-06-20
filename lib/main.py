@@ -43,6 +43,7 @@ def compute_poi_reach(pedestrian_network, gdf_points_of_interest, gdf_residentia
   poi_reach = []
 
   for i, poi in tqdm(gdf_points_of_interest.iterrows(), total=gdf_points_of_interest.shape[0], desc="Processing poi"):
+    # Try adding a node to the closest edge instead?
     poi_aproximation = Point(find_nearest_node(pedestrian_network, poi.geom))
     accesibility_polygon = accesibility_area(pedestrian_network, poi_aproximation, cutoff, weight)
     serviced_buildings = within_accesibility_area(accesibility_polygon, gdf_residential_buildings)
@@ -69,6 +70,7 @@ def compute_buildings_reach(pedestrian_network, gdf_residential_buildings, pois,
   residentials_reach = []
 
   for i, residential in tqdm(gdf_residential_buildings.iterrows(), total=gdf_residential_buildings.shape[0], desc="Processing poi"):
+    # Try adding a node to the closest edge instead?
     residential_approximation = Point(find_nearest_node(pedestrian_network, residential.geom))
     accesibility_polygon = accesibility_area(pedestrian_network, residential_approximation, cutoff, weight)
 
