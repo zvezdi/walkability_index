@@ -7,7 +7,7 @@
 from shapely.geometry import Point, MultiPoint, LineString, MultiLineString, Polygon
 
 from helpers import crs_transform_point, crs_transform_coords, crs_transform_linestring
-from database import connect_to_db, get_geodataframe_from_sql, close_connection
+from database import db_engine, gdf_from_sql
 from queries import pedestrian_network_query, administrative_regions_query, residential_buildings_query, poi_parks_query, buffered_region_boundary
 from network import build_network_from_geodataframe, find_nearest_node, compute_accessibility_isochron
 import os
@@ -20,20 +20,16 @@ import folium
 # Load environment variables from a .env file
 load_dotenv()
 
-# Establish connection with db
-db_connection = connect_to_db(os.getenv('DB_CONNECTION_STRING'))
-
 # Get data
+database = db_engine(os.getenv('DB_CONNECTION_STRING'))
 SCOPE = 'Lozenec'
-gdf_pedestrian_network = get_geodataframe_from_sql(db_connection, pedestrian_network_query(SCOPE))
-gdf_adm_regions = get_geodataframe_from_sql(db_connection, administrative_regions_query())
-gdf_residential_buildings_lozenec = get_geodataframe_from_sql(db_connection, residential_buildings_query(SCOPE))
-gdf_poi_parks = get_geodataframe_from_sql(db_connection, poi_parks_query(SCOPE))
+with database.connect() as db_connection:
+  gdf_pedestrian_network = gdf_from_sql(db_connection, pedestrian_network_query(SCOPE))
+  gdf_adm_regions = gdf_from_sql(db_connection, administrative_regions_query())
+  gdf_residential_buildings_lozenec = gdf_from_sql(db_connection, residential_buildings_query(SCOPE))
+  gdf_poi_parks = gdf_from_sql(db_connection, poi_parks_query(SCOPE))
 
-gdf_buffer_region = get_geodataframe_from_sql(db_connection, buffered_region_boundary(SCOPE))
-
-# Close connection with db
-close_connection(db_connection)
+  gdf_buffer_region = gdf_from_sql(db_connection, buffered_region_boundary(SCOPE))
 
 pedestrian_network = build_network_from_geodataframe(gdf_pedestrian_network, swap_xy = False, save_as = "lib/saves/pedestrian_network.graph")
 results = {}

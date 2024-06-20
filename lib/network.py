@@ -169,14 +169,14 @@ def compute_accessibility_isochron(network, source_point, cutoff, weight):
         break
 
   # Create boundary to represent the isochron
-  if boundary_points:
-      multipoint = MultiPoint(boundary_points)
-      convex_hull = multipoint.convex_hull
-      if isinstance(convex_hull, LineString):
-          boundary_linestring = convex_hull
-      else:
-          boundary_linestring = LineString(convex_hull.exterior.coords)
+  if len(boundary_points) > 2:
+    multipoint = MultiPoint(boundary_points)
+    convex_hull = multipoint.convex_hull
+    if isinstance(convex_hull, LineString):
+      boundary_linestring = convex_hull
+    else:
+      boundary_linestring = LineString(convex_hull.exterior.coords)
   else:
-      boundary_linestring = None
+    boundary_linestring = None
 
   return boundary_points, boundary_linestring
