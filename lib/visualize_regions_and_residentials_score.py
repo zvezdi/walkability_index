@@ -64,7 +64,7 @@ def color_for(value, color_mapping):
       return curr_color
   return 'black'
 
-adm_regions_layer = folium.FeatureGroup(name="Administrative Regions")
+adm_regions_layer = folium.FeatureGroup(name="Administrative Regions systematic")
 for _idx, region in gdf_adm_regions_service_levels.iterrows():
   region_4326 = crs_transform_multipolygon(region.geom)
   for polygon in list(region_4326.geoms):
@@ -82,6 +82,25 @@ for _idx, region in gdf_adm_regions_service_levels.iterrows():
       """
     ).add_to(adm_regions_layer)
 adm_regions_layer.add_to(m)
+
+adm_regions_layer_pca = folium.FeatureGroup(name="Administrative Regions PCA", show = False)
+for _idx, region in gdf_adm_regions_service_levels.iterrows():
+  region_4326 = crs_transform_multipolygon(region.geom)
+  for polygon in list(region_4326.geoms):
+    folium.Polygon(
+      locations = [(lat, lon) for lon, lat in polygon.exterior.coords], 
+      color = color_for(round(region.weighted_service_index_pca), color_mapping),
+      fill = True,
+      fill_color = color_for(round(region.weighted_service_index_pca), color_mapping),
+      fill_opacity = 0.5,
+      popup = f"""{region.obns_lat}<br>
+        Index PCA: {round(region.service_index_pca, 2)}<br>
+        Weighted Index PCA: {round(region.weighted_service_index_pca, 2)}<br>
+        Buildings: {round(region.buildings_count)}<br>
+        Appartments: {round(region.appcount)}
+      """
+    ).add_to(adm_regions_layer_pca)
+adm_regions_layer_pca.add_to(m)
 
 # Create legend
 legend_html = '''
@@ -156,5 +175,5 @@ for poi_type, gdf_poi_reach in pois.items():
 folium.LayerControl().add_to(m)
 
 # Display the map
-m.save('lib/saves/map_regions_and_residentials_with_service_level_v2.html')
+m.save('lib/saves/map_regions_and_residentials_with_service_level.html')
 m

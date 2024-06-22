@@ -45,7 +45,7 @@ BUFFER_LOZENEC_SQL = f"""
 """
 
 LOZENEC_RESIDENTIALS_SERVISE_LEVEL_SQL = f"""
-  select rrsl.* from zvezdi_work.results_residentials_service_level_v2 rrsl, zvezdi_work.gen_adm_regions gar 
+  select rrsl.* from zvezdi_work.results_residentials_service_level rrsl, zvezdi_work.gen_adm_regions gar 
   where gar.obns_lat = 'LOZENEC' and ST_Contains(gar.geom, rrsl.geom)
 """
 

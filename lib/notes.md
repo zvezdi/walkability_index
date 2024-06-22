@@ -1,5 +1,12 @@
 # Build walkability index
 
+## TODO for the exam
+
+[] snap point perpendicular to an edge instead to the nearest point of the graph
+[+] compute the metric (accessibility index) using PCA to get a more relative idea of data relationships
+[] visuals: different levels, different information
+[] when computing the isochrome of accessibility minimize the error comming form convex_hull
+
 ## General approach:
 
 1. Build index residential -> services:
