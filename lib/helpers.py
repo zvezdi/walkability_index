@@ -1,5 +1,5 @@
 from pyproj import Transformer
-from shapely.geometry import Point, LineString, Polygon, MultiPolygon
+from shapely.geometry import Point, LineString, Polygon, MultiPolygon, GeometryCollection
 
 BGS2005 = "EPSG:7801"
 WGS84 = "EPSG:4326"
@@ -67,7 +67,10 @@ def crs_transform_polygon(polygon, swap_coords = False, source_crs = BGS2005, ta
   >>> crs_transform_polygon(Polygon([(320960.4910, 4728848.5264), (320844.2254, 4728875.6080), (320794.2176, 4729493.6845), (320960.4910, 4728848.5264)]), swap_coords = True)
   <POLYGON ((42.674 23.315, 42.674 23.314, 42.68 23.313, 42.674 23.315))>
   """
-  
+  if not polygon.is_valid:
+    raise "Not Valid"
+  if not isinstance(polygon, Polygon):
+    raise ValueError(f"Not a Polygon. It is a {polygon.geom_type}")
   transformer = Transformer.from_crs(source_crs, target_crs, always_xy=True)
   transformed_coords = [transformer.transform(x, y) for x, y in polygon.exterior.coords]
 
@@ -77,8 +80,33 @@ def crs_transform_polygon(polygon, swap_coords = False, source_crs = BGS2005, ta
   return Polygon(transformed_coords)
 
 def crs_transform_multipolygon(multipolygon, swap_coords=False, source_crs=BGS2005, target_crs=WGS84):
+  if not multipolygon.is_valid:
+    raise "Not Valid"
+  if not isinstance(multipolygon, MultiPolygon):
+    raise ValueError(f"Not a MultiPolygon. It is a {multipolygon.geom_type}")
   transformed_polygons = [
     crs_transform_polygon(polygon, swap_coords, source_crs, target_crs) for polygon in multipolygon.geoms
   ]
     
   return MultiPolygon(transformed_polygons)
+
+def crs_transform_geometrycollection(geometry_collection, swap_coords=False, source_crs=BGS2005, target_crs=WGS84):
+    transformed_geometries = []
+    for geom in geometry_collection.geoms:
+        transformed_geom = crs_transform(geom, swap_coords, source_crs, target_crs)
+        transformed_geometries.append(transformed_geom)
+    return GeometryCollection(transformed_geometries)
+
+def crs_transform(shapely_object, swap_coords=False, source_crs=BGS2005, target_crs=WGS84):
+  if shapely_object.geom_type == 'Point':
+    return crs_transform_point(shapely_object, swap_coords, source_crs, target_crs)
+  elif shapely_object.geom_type == 'LineString':
+    return crs_transform_linestring(shapely_object, swap_coords, source_crs, target_crs)
+  elif shapely_object.geom_type == 'Polygon':
+    return crs_transform_polygon(shapely_object, swap_coords, source_crs, target_crs)
+  elif shapely_object.geom_type == 'MultiPolygon':
+    return crs_transform_multipolygon(shapely_object, swap_coords, source_crs, target_crs)
+  elif shapely_object.geom_type == 'GeometryCollection':
+    return crs_transform_geometrycollection(shapely_object, swap_coords, source_crs, target_crs)
+  else:
+    raise ValueError(f"Don't know how to crs transform a {shapely_object.geom_type}")

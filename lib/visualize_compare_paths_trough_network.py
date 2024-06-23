@@ -21,7 +21,7 @@ with database.connect() as db_connection:
   gdf_residential_buildings_lozenec = gdf_from_sql(db_connection, residential_buildings_query(SCOPE))
   gdf_poi_parks = gdf_from_sql(db_connection, poi_parks_query(SCOPE))
 
-pedestrian_network = build_network_from_geodataframe(gdf_pedestrian_network, swap_xy = False, save_as = "lib/saves/pedestrian_network.graph")
+pedestrian_network = build_network_from_geodataframe(gdf_pedestrian_network, save_as = "lib/saves/pedestrian_network.graph")
 # visualize_network(pedestrian_network, save_as = "lib/saves/pedestrian_network.png")
 
 sample_residential_building = Point(320543.353, 4725717.825)

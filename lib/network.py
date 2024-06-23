@@ -1,182 +1,148 @@
 import networkx as nx
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
-from shapely.geometry import Point, MultiPoint, LineString, MultiLineString
+from shapely.geometry import Point, MultiPoint, LineString, MultiLineString, GeometryCollection, MultiPolygon
 
-def build_network_from_geodataframe(gdf, swap_xy = True, save_as = None):
-  """
-  EPSG:7801(our calcualtions crs) is denoted in (x, y) and EPSG:4326(the visualization crs) is denoted with (longitude, latitude)
-  Most map visualization libraries use (latitude, longitude) style coordinates in EPSG:4326
-  swap_xy = False will add the edges as they are in the gdf aka for edge Linestring((x1, y1), (x2,y2)) will add an edge (x1, y1) -> (x2, y2) 
-  swap_xy = True will swap the coordinates aka for edge Linestring((x1, y1), (x2,y2)) will add an edge (y1, x1) -> (y2, x2)
-  """
+import numpy as np
+from scipy.spatial import Delaunay
+from shapely.geometry import MultiPoint, Polygon
+from shapely.ops import unary_union
+
+def build_network_from_geodataframe(gdf, save_as = None):
   G = nx.Graph()
+  
   for _idx, row in gdf.iterrows():
     geom = row['geom']
     length = row['meters']
     time = row['minutes']
-
+    
     if isinstance(geom, MultiLineString):
-      lines = geom.geoms
+      for line in geom.geoms:
+        add_line_to_graph(G, line, length, time)
+    elif isinstance(geom, LineString):
+      add_line_to_graph(G, geom, length, time)
     else:
-      lines = [geom]
-
-    for line in lines:
-      coords = list(line.coords)
-
-      for i in range(len(coords) - 1):
-          u = coords[i]
-          v = coords[i + 1]
-          if swap_xy:
-            # Add edges with swaped (latitude/y, longitude/x) if input was (x, y)
-            G.add_edge((u[1], u[0]), (v[1], v[0]), length=length, time=time)
-          else:
-            # Add edges as they are in the input, presumably (x, y)
-            G.add_edge((u[0], u[1]), (v[0], v[1]), length=length, time=time)
-
+        raise TypeError(f"Unexpected geometry type: {type(geom)}")
+  
   if save_as:
     nx.write_gml(G, save_as)
 
   return G
 
+def add_line_to_graph(G, line, length, time):
+  coords = list(line.coords)
+  
+  for i in range(len(coords) - 1):
+    start = coords[i]
+    end = coords[i + 1]
+    
+    # Add nodes with 'pos' attribute
+    if start not in G:
+      G.add_node(start, pos=start)
+    if end not in G:
+      G.add_node(end, pos=end)
+    
+    # Add edge with length and time as weights
+    G.add_edge(start, end, length=length, time=time)
+
 def read_network_from_file(path_to_graph):
   return nx.read_gml(path_to_graph)
 
-def visualize_network(G, save_as = None):
-  pos = {node: (node[0], node[1]) for node in G.nodes()}
-  
-  plt.figure(figsize=(12, 8))
-  nx.draw(G, pos, with_labels=False, node_size=10, font_size=8, edge_color="gray")
-  plt.title('Pedestrian Network Graph')
-  plt.xlabel('Longitude')
-  plt.ylabel('Latitude')
-  if save_as:
-    plt.savefig(save_as)
-  plt.show()
-
-# Function to find the nearest node in the graph to a given point
 def find_nearest_node(G, point):
-  nearest_node = None
-  min_dist = float('inf')
+  """
+  Returns a node id in the graph structure
+  """
+  return min(G.nodes(data=True), key=lambda x: Point(x[1]['pos']).distance(point))[0]
 
-  for node in G.nodes:
-      dist = Point(node).distance(point)
-      if dist < min_dist:
-          min_dist = dist
-          nearest_node = node
-
-  return nearest_node
-
-def visualize_nearest_node(G, original_point, nearest_node, save_as = None):
-  pos = {node: (node[0], node[1]) for node in G.nodes()}
-  
-  plt.figure(figsize=(12, 8))
-  nx.draw(G, pos, with_labels=False, node_size=10, font_size=8, edge_color="gray")
-
-  # Add the original point
-  plt.scatter(original_point.x, original_point.y, color='red', s=20, marker='s')  # s is the size, marker='s' is for square shape
-  plt.text(original_point.x, original_point.y, "original", horizontalalignment='center', verticalalignment='center', color='black', fontsize=12)
-  # Add the nearest node
-  plt.scatter(nearest_node.x, nearest_node.y, color='green', s=20, marker='s')  # s is the size, marker='s' is for square shape
-  plt.text(nearest_node.x, nearest_node.y, "nearest", horizontalalignment='center', verticalalignment='center', color='black', fontsize=12)
-
-  # Define the zoom region (adjust these values to fit your region of interest)
-  x_min = min(original_point.x, nearest_node.x) - 500
-  x_max = max(original_point.x, nearest_node.x) + 500
-  y_min = min(original_point.y, nearest_node.y) - 500
-  y_max = max(original_point.y, nearest_node.y) + 500
-
-  # Set the axis limits to zoom in on the region of interest
-  plt.xlim(x_min, x_max)
-  plt.ylim(y_min, y_max)
-
-  plt.title('Pedestrian Network Graph')
-  plt.xlabel('Longitude')
-  plt.ylabel('Latitude')
-  if save_as:
-    plt.savefig(save_as)
-  plt.show()
+def node_to_point(G, node_id):
+  """
+  Transforms a node id in the graph to a Point(x, y) object
+  """
+  if G.has_node(node_id):
+    return Point(G.nodes[node_id]['pos'])
+  else:
+    raise ValueError(f"Node {node_id} does not exist in the graph.")
 
 # Function to compute the shortest path in the graph
 def shortest_path(G, start_point, end_point, weight='time'):
-    start_node = find_nearest_node(G, start_point)
-    end_node = find_nearest_node(G, end_point)
+  start_node = find_nearest_node(G, start_point)
+  end_node = find_nearest_node(G, end_point)
 
-    path = nx.shortest_path(G, source=start_node, target=end_node, weight=weight)
-    total_cost = nx.shortest_path_length(G, source=start_node, target=end_node, weight=weight)
-    return path, total_cost
+  path = nx.shortest_path(G, source=start_node, target=end_node, weight=weight)
+  total_cost = nx.shortest_path_length(G, source=start_node, target=end_node, weight=weight)
+  return path, total_cost
 
-def visualize_path(G, original_source, original_destination, path_time = None, path_length = None, save_as = None):
-  pos = {node: (node[0], node[1]) for node in G.nodes()}
-  
-  plt.figure(figsize=(12, 8))
-  # Draw the graph
-  nx.draw(G, pos, with_labels=False, node_size=10, font_size=8, edge_color="gray")
-
-  # Draw the paths
-  if path_time:
-    path_edges = list(zip(path_time, path_time[1:]))
-    nx.draw_networkx_edges(G, pos, edgelist=path_edges, edge_color='green', width=4)
-  if path_length:
-    path_edges = list(zip(path_length, path_length[1:]))
-    nx.draw_networkx_edges(G, pos, edgelist=path_edges, edge_color='purple', width=2)
-
-  # Add the original point
-  plt.scatter(original_source.x, original_source.y, color='red', s=20, marker='s')  # s is the size, marker='s' is for square shape
-  plt.text(original_source.x, original_source.y, "source", horizontalalignment='center', verticalalignment='center', color='black', fontsize=12)
-  # Add the destination point
-  plt.scatter(original_destination.x, original_destination.y, color='green', s=20, marker='s')  # s is the size, marker='s' is for square shape
-  plt.text(original_destination.x, original_destination.y, "destination", horizontalalignment='center', verticalalignment='center', color='black', fontsize=12)
-
-  # Define the zoom region (adjust these values to fit your region of interest)
-  x_min = min(original_source.x, original_destination.x) - 500
-  x_max = max(original_source.x, original_destination.x) + 500
-  y_min = min(original_source.y, original_destination.y) - 500
-  y_max = max(original_source.y, original_destination.y) + 500
-
-  # Set the axis limits to zoom in on the region of interest
-  plt.xlim(x_min, x_max)
-  plt.ylim(y_min, y_max)
-
-  # Other config
-  plt.title('Pedestrian Network Graph')
-  plt.xlabel('Longitude')
-  plt.ylabel('Latitude')
-
-  legend_elements = [
-    Line2D([0], [0], color='green', lw=2, label='Shortest by Time'),
-    Line2D([0], [0], color='purple', lw=2, label='Shortest by Length')
-  ]
-  plt.legend(handles=legend_elements, loc='best')
-
-  if save_as:
-    plt.savefig(save_as)
-  plt.show()
-
-def compute_accessibility_isochron(network, source_point, cutoff, weight):
-  """
-  "cutoff" is in the metric system of the "weight"
-  """
-  lengths = nx.single_source_dijkstra_path_length(network, (source_point.x, source_point.y), cutoff = cutoff, weight = weight)
-  within_cutoff = { node: dist for node, dist in lengths.items() if dist <= cutoff }
+def compute_accessibility_boundary_points(network, source_node, weight_type, max_weight):
+  # Find all nodes within the max_weight distance and the cost to get to them
+  lengths = nx.single_source_dijkstra_path_length(network, source_node, cutoff = max_weight, weight = weight_type)
+  reachable_nodes = lengths.keys()
   boundary_points = []
 
   # Traverse the edges and find boundary points
-  for node, _dist in within_cutoff.items():
+  for node, _dist in lengths.items():
     for neighbor in network.neighbors(node):
-      if neighbor not in within_cutoff:
+      if neighbor not in reachable_nodes:
         boundary_points.append(node)
         break
+  
+  return boundary_points, LineString(boundary_points)
 
-  # Create boundary to represent the isochron
-  if len(boundary_points) > 2:
-    multipoint = MultiPoint(boundary_points)
-    convex_hull = multipoint.convex_hull
-    if isinstance(convex_hull, LineString):
-      boundary_linestring = convex_hull
-    else:
-      boundary_linestring = LineString(convex_hull.exterior.coords)
-  else:
-    boundary_linestring = None
+def compute_accessibility_isochron(network, source_node, weight_type, max_weight):
+  """
+  weight_type: string - The name of the edge metric to be used
+  max_weight: number - Value in the metric system of the "weight" to stop traversing the graph further when reached
+  """
+  # Find all nodes within the max_weight distance and the cost to get to them
+  lengths = nx.single_source_dijkstra_path_length(network, source_node, cutoff = max_weight, weight = weight_type)
 
-  return boundary_points, boundary_linestring
+  points_within_distance = [Point(network.nodes[node]['pos']) for node in lengths.keys()]
+  multi_point = MultiPoint(points_within_distance)
+
+  return multi_point.convex_hull
+
+def filter_nodes_within_accessibility_isochron(network, accessibility_isochron):
+  filtered_nodes = []
+  for node in network.nodes:
+    point = Point(network.nodes[node]['pos'])
+    if point.within(accessibility_isochron):
+      filtered_nodes.append(node)
+  return filtered_nodes
+
+def find_nearest_edge(network, point):
+  nearest_edge = None
+  min_dist = float('inf')
+  for u, v, data in network.edges(data=True):
+    line = LineString([network.nodes[u]['pos'], network.nodes[v]['pos']])
+    dist = point.distance(line)
+    if dist < min_dist:
+      min_dist = dist
+      nearest_edge = (u, v, data)
+  
+  return nearest_edge
+
+def snap_point_to_edge(network, point, length_attr='length', time_attr='time'):
+  u, v, data = find_nearest_edge(network, point)
+
+  line = LineString([network.nodes[u]['pos'], network.nodes[v]['pos']])
+  proj_point = line.interpolate(line.project(point))
+
+  # Add the new node at the projected point
+  new_node = (float(proj_point.x), float(proj_point.y))
+  network.add_node(new_node, pos=(proj_point.x, proj_point.y))
+  
+  # Split the edge (u, v) into (u, new_node) and (new_node, v)
+  network.remove_edge(u, v)
+
+  original_length = data[length_attr]
+  original_time = data[time_attr]
+  
+  length1 = Point(network.nodes[u]['pos']).distance(proj_point)
+  length2 = proj_point.distance(Point(network.nodes[v]['pos']))
+
+  time1 = original_time * (length1 / original_length)
+  time2 = original_time * (length2 / original_length)
+
+  network.add_edge(u, new_node, **{length_attr: float(length1), time_attr: time1})
+  network.add_edge(new_node, v, **{length_attr: float(length2), time_attr: time2})
+
+  return new_node

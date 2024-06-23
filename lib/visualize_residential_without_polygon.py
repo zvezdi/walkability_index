@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 
 from database import db_engine, gdf_from_sql, create_table_form_dgf
 from queries import pedestrian_network_query, administrative_regions_query, residential_buildings_query, poi_parks_query, poi_schools_query, poi_query
-from network import build_network_from_geodataframe, find_nearest_node, shortest_path, compute_accessibility_isochron
+from network import build_network_from_geodataframe
 from helpers import crs_transform_coords
 import networkx as nx
 
@@ -26,7 +26,7 @@ with database.connect() as db_connection:
   gdf_adm_regions = gdf_from_sql(db_connection, administrative_regions_query())
   gdf_residential_buildings_lozenec = gdf_from_sql(db_connection, residential_buildings_query(SCOPE))
 
-pedestrian_network = build_network_from_geodataframe(gdf_pedestrian_network, swap_xy = False, save_as = "lib/saves/pedestrian_network.graph")
+pedestrian_network = build_network_from_geodataframe(gdf_pedestrian_network, save_as = "lib/saves/pedestrian_network.graph")
 
 points = [
  [321540.0290951831, 4730158.139271268],

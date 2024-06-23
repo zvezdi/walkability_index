@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from database import db_engine, gdf_from_sql, save_gdf_to_db, db_execute
 from queries import pedestrian_network_query, residential_buildings_query, poi_query
 from network import build_network_from_geodataframe
-from compute_accesibility_index import compute_accessibility_index_weighed_sum, compute_accessibility_index_pca
+from compute_accessibility_index import compute_accessibility_index_weighed_sum, compute_accessibility_index_pca
 from compute_location_reach import compute_poi_reach, compute_buildings_reach
 
 # Load environment variables from a .env file
@@ -58,24 +58,26 @@ def main():
       'poi_sport': gdf_from_sql(db_connection, poi_query('poi_sport', SCOPE)),
     }
 
-  pedestrian_network = build_network_from_geodataframe(gdf_pedestrian_network, swap_xy = False, save_as = "lib/saves/pedestrian_network.graph")
+  pedestrian_network = build_network_from_geodataframe(gdf_pedestrian_network, save_as = "lib/saves/pedestrian_network.graph")
 
-  # for poi_type, poi_gdf in pois.items():
-  #   gdf_poi_reach = compute_poi_reach(
-  #     pedestrian_network,
-  #     poi_gdf,
-  #     gdf_residential_buildings_lozenec,
-  #     cutoff = 1000,
-  #     weight = 'length'
-  #   )
-  #   save_gdf_to_db(database, SCHEMA, f"results_{poi_type}_reach", gdf_poi_reach)
+  for poi_type, poi_gdf in pois.items():
+    gdf_poi_reach = compute_poi_reach(
+      pedestrian_network,
+      poi_gdf,
+      gdf_residential_buildings_lozenec,
+      weight_type = 'length',
+      max_weight = 1000,
+      snap_to = 'edge'
+    )
+    save_gdf_to_db(database, SCHEMA, f"results_{poi_type}_reach", gdf_poi_reach)
 
   gdf_residentials_reach = compute_buildings_reach(
     pedestrian_network,
     gdf_residential_buildings_lozenec,
     pois.values(),
-    cutoff = 1000,
-    weight = 'length'
+    weight_type = 'length',
+    max_weight = 1000,
+    snap_to = 'edge'
   )
 
   gdf_residentials_with_access_index = compute_accessibility_index_weighed_sum(gdf_residentials_reach, df_access_weights, column_name = 'service_index')
