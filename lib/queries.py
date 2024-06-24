@@ -28,10 +28,6 @@ BUFFER_LOZENEC_SQL = f"""
   select geom from zvezdi_work.gen_lezenec_buf
 """
 
-LOZENEC_RESIDENTIALS_SERVISE_LEVEL_SQL = f"""
-  select rrsl.* from zvezdi_work.results_residentials_service_level rrsl, zvezdi_work.gen_adm_regions gar 
-  where gar.obns_lat = 'LOZENEC' and ST_Contains(gar.geom, rrsl.geom)
-"""
 
 def pedestrian_network_query(scope):
   if scope == "Lozenec":
@@ -46,9 +42,12 @@ def residential_buildings_query(scope):
     return RESIDENTIAL_BUILDINGS_LOZENEC_BUFFERED_SQL
   return RESIDENTIAL_BUILDINGS_SQL
 
-def residential_buildings_with_service_level_query(scope):
+def residential_buildings_with_service_level_query(scope, analytics_type = 'absolute'):
   if scope == "Lozenec":
-    return LOZENEC_RESIDENTIALS_SERVISE_LEVEL_SQL
+    return f"""
+    select rrsl.* from zvezdi_work.results_residentials_service_level_{analytics_type} rrsl, zvezdi_work.gen_adm_regions gar 
+    where gar.obns_lat = 'LOZENEC' and ST_Contains(gar.geom, rrsl.geom)
+    """
   return "Implement me!"
 
 def buffered_region_boundary(scope):
@@ -64,13 +63,20 @@ def poi_query(table_name, scope):
     """
   return "Implement me!"
 
-def poi_reach_query(table_name, scope):
+def poi_reach_query(table_name, scope, analytics_type = 'absolute'):
   if scope == "Lozenec":
-    return f"""
-      select poi.id, poi.geom, poi.subgroup, poi.buildings_within_reach, poi.appartments_within_reach, poi.service_distance_polygon
-      from zvezdi_work.results_{table_name}_reach poi, zvezdi_work.gen_lezenec_buf buffered_lozenec
-      where st_intersects(poi.geom, buffered_lozenec.geom)
-    """
+    if analytics_type == "absolute":
+      return f"""
+        select poi.id, poi.geom, poi.subgroup, poi.buildings_within_reach, poi.appartments_within_reach
+        from zvezdi_work.results_{table_name}_reach_{analytics_type} poi, zvezdi_work.gen_lezenec_buf buffered_lozenec
+        where st_intersects(poi.geom, buffered_lozenec.geom)
+      """
+    else:
+      return f"""
+        select poi.id, poi.geom, poi.subgroup, poi.buildings_within_reach, poi.appartments_within_reach, poi.service_distance_polygon
+        from zvezdi_work.results_{table_name}_reach_{analytics_type} poi, zvezdi_work.gen_lezenec_buf buffered_lozenec
+        where st_intersects(poi.geom, buffered_lozenec.geom)
+      """
   return "Implement me!"
 
 def administrative_regions_with_service_level_query():

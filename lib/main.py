@@ -31,7 +31,31 @@ def create_regions_with_service_level(database, tables_sufix):
   """
   try:
     db_execute(database, sql)
-    print(f"Created table zvezdi_work.results_gen_adm_regions_service_level")
+    print(f"Created table zvezdi_work.results_gen_adm_regions_service_level_{tables_sufix}")
+  except Exception as e:
+    print(f"Could not create, {e}")
+
+def create_ge_with_service_level(database, tables_sufix):
+  sql = f"""
+    DROP TABLE IF EXISTS zvezdi_work.results_ge_service_level_{tables_sufix};
+    CREATE TABLE zvezdi_work.results_ge_service_level_{tables_sufix} AS
+    SELECT ge.id,
+      ge.regname,
+      ge.rajon,
+      ge.geom,
+      sum(rrsl.service_index) / count(rrsl.id) as service_index,
+      COALESCE(sum(rrsl.service_index * rrsl.appcount) / NULLIF(sum(rrsl.appcount), 0), 0) as weighted_service_index,
+      sum(rrsl.service_index_pca) / count(rrsl.id) as service_index_pca,
+      COALESCE(sum(rrsl.service_index_pca * rrsl.appcount) / NULLIF(sum(rrsl.appcount), 0), 0) as weighted_service_index_pca,
+      sum(rrsl.appcount) as appcount,
+      count(rrsl.id) as buildings_count
+    FROM zvezdi_work.results_residentials_service_level_{tables_sufix} rrsl, ge_2020 ge 
+    WHERE ST_Contains(ge.geom, rrsl.geom)
+    GROUP BY ge.id, ge.regname, ge.rajon, ge.geom
+  """
+  try:
+    db_execute(database, sql)
+    print(f"Created table zvezdi_work.results_ge_service_level_{tables_sufix}")
   except Exception as e:
     print(f"Could not create, {e}")
 
@@ -143,6 +167,7 @@ def main():
     tables_sufix = "isochron",
   )
   create_regions_with_service_level(database, "isochron")
+  create_ge_with_service_level(database, "isochron")
 
   compute_absolute_accesibilities(
     gdf_pedestrian_network,
@@ -155,6 +180,7 @@ def main():
     tables_sufix = "absolute",
   )
   create_regions_with_service_level(database, "absolute")
+  create_ge_with_service_level(database, "absolute")
 
 if __name__ == "__main__":
   main()

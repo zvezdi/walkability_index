@@ -7,11 +7,8 @@ from queries import pedestrian_network_query, administrative_regions_query, resi
 from network import build_network_from_geodataframe, find_nearest_node, compute_accessibility_isochron,snap_point_to_edge, node_to_point, compute_accessibility_boundary_points, filter_nodes_within_accessibility_isochron
 import os
 from dotenv import load_dotenv
-import networkx as nx
-from tqdm import tqdm # progressbar
 
 import folium
-import json
 
 def filter_points_within_isochron(geo_data_frame, alpha_shape):
   if isinstance(alpha_shape, MultiPolygon):
@@ -20,37 +17,13 @@ def filter_points_within_isochron(geo_data_frame, alpha_shape):
     filtered_gdf = geo_data_frame[geo_data_frame.geometry.apply(lambda x: x.within(alpha_shape))]
   return filtered_gdf
 
-# Load environment variables from a .env file
-load_dotenv()
-
-# Get data
-database = db_engine(os.getenv('DB_CONNECTION_STRING'))
-SCOPE = 'Lozenec'
-with database.connect() as db_connection:
-  gdf_pedestrian_network = gdf_from_sql(db_connection, pedestrian_network_query(SCOPE))
-  gdf_adm_regions = gdf_from_sql(db_connection, administrative_regions_query())
-  gdf_residential_buildings_lozenec = gdf_from_sql(db_connection, residential_buildings_query(SCOPE))
-  gdf_pois = gdf_from_sql(db_connection, poi_query('poi_schools', SCOPE))
-
-  gdf_buffer_region = gdf_from_sql(db_connection, buffered_region_boundary(SCOPE))
-
-pedestrian_network = build_network_from_geodataframe(gdf_pedestrian_network, save_as = "lib/saves/pedestrian_network.graph")
-results = {}
-
-poi = gdf_pois.sample().iloc[0]
-poi_geometry = poi.geom.geoms[0] if isinstance(poi.geom, MultiPoint) else poi.geom
-
-def draw_accessibility(layer, pedestrian_network, node_id, color):
+def draw_accessibility(layer, pedestrian_network, gdf_residential_buildings, node_id, color):
   point = node_to_point(pedestrian_network, node_id)
 
   boundary_points, boundary_linestring = compute_accessibility_boundary_points(pedestrian_network, node_id, weight_type='length', max_weight=1000)
   isochron = compute_accessibility_isochron(pedestrian_network, node_id, weight_type='length', max_weight=1000)
   # filtered_nodes_snap_to_node = filter_nodes_within_accessibility_isochron(pedestrian_network, isochron)
-  gdf_survised_buildings = filter_points_within_isochron(gdf_residential_buildings_lozenec, isochron)
-
-  # print("all buildings", gdf_residential_buildings_lozenec.shape[0])
-  # print("surviced buildings snap to node", gdf_survised_buildings.shape[0])
-  # print("nodes in isochron", len(filtered_nodes_snap_to_node))
+  gdf_survised_buildings = filter_points_within_isochron(gdf_residential_buildings, isochron)
 
   point_view = crs_transform_point(point, swap_coords=True)
 
@@ -107,6 +80,26 @@ def draw_accessibility(layer, pedestrian_network, node_id, color):
 
   return layer
 
+# Load environment variables from a .env file
+load_dotenv()
+
+# Get data
+database = db_engine(os.getenv('DB_CONNECTION_STRING'))
+SCOPE = 'Lozenec'
+with database.connect() as db_connection:
+  gdf_pedestrian_network = gdf_from_sql(db_connection, pedestrian_network_query(SCOPE))
+  gdf_adm_regions = gdf_from_sql(db_connection, administrative_regions_query())
+  gdf_residential_buildings_lozenec = gdf_from_sql(db_connection, residential_buildings_query(SCOPE))
+  gdf_pois = gdf_from_sql(db_connection, poi_query('poi_schools', SCOPE))
+
+  gdf_buffer_region = gdf_from_sql(db_connection, buffered_region_boundary(SCOPE))
+
+pedestrian_network = build_network_from_geodataframe(gdf_pedestrian_network, save_as = "lib/saves/pedestrian_network.graph")
+results = {}
+
+poi = gdf_pois.sample().iloc[0]
+poi_geometry = poi.geom.geoms[0] if isinstance(poi.geom, MultiPoint) else poi.geom
+
 ##### Visuals ########
 
 # Create a map centered around the source point
@@ -145,7 +138,8 @@ node_approx_layer = folium.FeatureGroup(name="Node Approximation").add_to(m)
 poi_snaped_to_node_node_id = find_nearest_node(pedestrian_network, poi_geometry)
 draw_accessibility(
   node_approx_layer, 
-  pedestrian_network, 
+  pedestrian_network,
+  gdf_residential_buildings_lozenec, 
   poi_snaped_to_node_node_id,
   color = "red"
 )
@@ -158,6 +152,7 @@ poi_snaped_to_edge_node_id = snap_point_to_edge(pedestrian_network, poi_geometry
 draw_accessibility(
   edge_approx_layer,
   pedestrian_network,
+  gdf_residential_buildings_lozenec,
   poi_snaped_to_edge_node_id,
   color = "blue"
 )
@@ -166,5 +161,5 @@ draw_accessibility(
 folium.LayerControl().add_to(m)
 
 # Display the map
-m.save('lib/saves/accessibility_isochron.html')
+m.save('lib/saves/compare_accessibility_with_different_snap_methods.html')
 m
