@@ -10,11 +10,11 @@ class App < Sinatra::Base
 
   before do
     @connection = PG.connect(
-      host: "34.118.61.196",
-      port: "5432",
-      dbname: "ragis",
-      user: "student",
-      password: "extr3m3conditions"
+      host: "",
+      port: "",
+      dbname: "",
+      user: "",
+      password: ""
     )
   end
 
