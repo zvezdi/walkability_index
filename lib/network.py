@@ -1,12 +1,9 @@
 import networkx as nx
-import matplotlib.pyplot as plt
-from matplotlib.lines import Line2D
 from shapely.geometry import Point, MultiPoint, LineString, MultiLineString, GeometryCollection, MultiPolygon
 
 import numpy as np
-from scipy.spatial import Delaunay
 from shapely.geometry import MultiPoint, Polygon
-from shapely.ops import unary_union
+from tqdm import tqdm # progressbar
 
 def build_network_from_geodataframe(gdf, save_as = None):
   G = nx.Graph()
@@ -120,29 +117,46 @@ def find_nearest_edge(network, point):
   
   return nearest_edge
 
-def snap_point_to_edge(network, point, length_attr='length', time_attr='time'):
+def snap_point_to_edge(network, point, length_attr='length', time_attr='time', add_to_network=True):
+  if not isinstance(point, Point):
+    print("Substituting with the centroid")
+    point = point.centroid
   u, v, data = find_nearest_edge(network, point)
 
   line = LineString([network.nodes[u]['pos'], network.nodes[v]['pos']])
   proj_point = line.interpolate(line.project(point))
 
-  # Add the new node at the projected point
   new_node = (float(proj_point.x), float(proj_point.y))
-  network.add_node(new_node, pos=(proj_point.x, proj_point.y))
-  
-  # Split the edge (u, v) into (u, new_node) and (new_node, v)
-  network.remove_edge(u, v)
 
-  original_length = data[length_attr]
-  original_time = data[time_attr]
-  
-  length1 = Point(network.nodes[u]['pos']).distance(proj_point)
-  length2 = proj_point.distance(Point(network.nodes[v]['pos']))
+  if add_to_network:
+    # Add the new node at the projected point
+    network.add_node(new_node, pos=(proj_point.x, proj_point.y))
+    
+    # Split the edge (u, v) into (u, new_node) and (new_node, v)
+    network.remove_edge(u, v)
 
-  time1 = original_time * (length1 / original_length)
-  time2 = original_time * (length2 / original_length)
+    original_length = data[length_attr]
+    original_time = data[time_attr]
+    
+    length1 = Point(network.nodes[u]['pos']).distance(proj_point)
+    length2 = proj_point.distance(Point(network.nodes[v]['pos']))
 
-  network.add_edge(u, new_node, **{length_attr: float(length1), time_attr: time1})
-  network.add_edge(new_node, v, **{length_attr: float(length2), time_attr: time2})
+    time1 = original_time * (length1 / original_length) if original_length != 0 else original_time / 2
+    time2 = original_time * (length2 / original_length) if original_length != 0 else original_time / 2
+
+    network.add_edge(u, new_node, **{length_attr: float(length1), time_attr: time1})
+    network.add_edge(new_node, v, **{length_attr: float(length2), time_attr: time2})
 
   return new_node
+
+def extend_network_with(network, gdf):
+  approximated_nodes = []
+  for idx, row in tqdm(gdf.iterrows(), total=gdf.shape[0], desc="Adding nodes"):
+    new_node = snap_point_to_edge(network, row.geom, add_to_network=True)
+    approximated_nodes.append(new_node)
+
+  gdf["snapped_to_node"] = approximated_nodes
+
+def nearby_nodes(network, source_node, weight_type, max_weight):
+  lengths = nx.single_source_dijkstra_path_length(network, source_node, cutoff = max_weight, weight = weight_type)
+  return lengths.keys()
