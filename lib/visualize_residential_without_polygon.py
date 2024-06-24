@@ -1,17 +1,14 @@
 import folium
 
-import geopandas as gpd
-from shapely.geometry import Point, MultiLineString, Polygon
-from helpers import crs_transform_coords, crs_transform_polygon
+from helpers import crs_transform_coords
 import pandas as pd
 import os
 from dotenv import load_dotenv
 
-from database import db_engine, gdf_from_sql, create_table_form_dgf
-from queries import pedestrian_network_query, administrative_regions_query, residential_buildings_query, poi_parks_query, poi_schools_query, poi_query
+from database import db_engine, gdf_from_sql
+from queries import pedestrian_network_query, administrative_regions_query, residential_buildings_query
 from network import build_network_from_geodataframe
 from helpers import crs_transform_coords
-import networkx as nx
 
 
 # Load environment variables from a .env file

@@ -5,7 +5,7 @@
 [+] snap point perpendicular to an edge instead to the nearest point of the graph
 [+] compute the metric (accessibility index) using PCA to get a more relative idea of data relationships
 [] visuals: different levels, different information
-[] when computing the isochrome of accessibility minimize the error comming form convex_hull
+[+] when computing the isochrome of accessibility minimize the error comming form convex_hull
 
 ## General approach:
 
@@ -27,6 +27,7 @@ for residential in residential_buildings:
 3. Compute an index for the region
    3.1. Simple avg
    3.2. Weighted avg with appartment count
+   3.3 PCA for a relative value
 
 ### For visualization
 
@@ -53,6 +54,7 @@ for poi_type in poi_types:
 
 1. Accuracy
 
-- Aproximate residential building with closesed node of the peredstian network
-- Aproximate poi location with closesed node of the peredstian network
+- Aproximate residential building with closesed node of the peredstian network (we can also snap to edge, which is better, but entrances would be best)
+- Aproximate poi location with closesed node of the peredstian network (we can also snap to edge, which is better, but entrances would be best)
 - The weights on the edges are some averages and do not take into account demograpics of the region and their adjusted speed
+- Pois and Residential buildings are denoted with the centroid of the building which does not accuratly reflect their reach accross the network as we snap only to the nearest node/edge and don't take into acount the different entrances. Meaning we sevearly under estimate the reach or each POI and building as most have at least 2 entrances.

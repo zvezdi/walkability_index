@@ -1,8 +1,6 @@
 import networkx as nx
-from shapely.geometry import Point, MultiPoint, LineString, MultiLineString, GeometryCollection, MultiPolygon
-
-import numpy as np
-from shapely.geometry import MultiPoint, Polygon
+from shapely.geometry import Point, MultiPoint, LineString, MultiLineString
+from shapely.geometry import MultiPoint
 from tqdm import tqdm # progressbar
 
 def build_network_from_geodataframe(gdf, save_as = None):
@@ -67,6 +65,7 @@ def shortest_path(G, start_point, end_point, weight='time'):
 
   path = nx.shortest_path(G, source=start_node, target=end_node, weight=weight)
   total_cost = nx.shortest_path_length(G, source=start_node, target=end_node, weight=weight)
+
   return path, total_cost
 
 def compute_accessibility_boundary_points(network, source_node, weight_type, max_weight):
@@ -103,6 +102,7 @@ def filter_nodes_within_accessibility_isochron(network, accessibility_isochron):
     point = Point(network.nodes[node]['pos'])
     if point.within(accessibility_isochron):
       filtered_nodes.append(node)
+
   return filtered_nodes
 
 def find_nearest_edge(network, point):

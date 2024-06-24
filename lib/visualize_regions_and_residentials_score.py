@@ -1,4 +1,4 @@
-from shapely.geometry import Point, MultiLineString, MultiPoint
+from shapely.geometry import MultiPoint
 
 from helpers import crs_transform_coords, crs_transform_multipolygon, crs_transform_polygon
 from database import db_engine, gdf_from_sql

@@ -1,5 +1,3 @@
-import geopandas as gpd
-from shapely.geometry import Point, MultiLineString, Polygon
 from database import db_engine, gdf_from_sql
 from helpers import crs_transform_coords, crs_transform_polygon
 from shapely import wkt

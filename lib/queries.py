@@ -12,10 +12,6 @@ RESIDENTIAL_BUILDINGS_SQL = f"""
   select id, geom, floorcount as floors, appcount as appartments from zvezdi_work.buildings_res_all_2023
 """
 
-POI_PARKS_SQL = f"""
-  select id, geom, subgroup_i as subgroup from zvezdi_work.poi_parks pp
-"""
-
 ###### Scoped queries for Lozenec #######
 
 PEDESTRIAN_NETWORK_BUFFERED_LOZENEC_SQL = f"""
@@ -26,18 +22,6 @@ PEDESTRIAN_NETWORK_BUFFERED_LOZENEC_SQL = f"""
 
 RESIDENTIAL_BUILDINGS_LOZENEC_BUFFERED_SQL = f"""
   select id, geom, floorcount as floors, appcount as appartments from zvezdi_work.buildings_res_lozenec_2019
-"""
-
-POI_PARKS_BUFFERED_LOZENEC_SQL = f"""
-  select pp.id, pp.geom, subgroup_i as subgroup 
-  from zvezdi_work.poi_parks pp, zvezdi_work.gen_lezenec_buf buffered_lozenec
-  where st_intersects(pp.geom, buffered_lozenec.geom)
-"""
-
-POI_SCHOOLS_BUFFERED_LOZENEC_SQL = f"""
-  select pp.id, pp.geom, subgroup_i as subgroup 
-  from zvezdi_work.poi_schools pp, zvezdi_work.gen_lezenec_buf buffered_lozenec
-  where st_intersects(pp.geom, buffered_lozenec.geom)
 """
 
 BUFFER_LOZENEC_SQL = f"""
@@ -65,16 +49,6 @@ def residential_buildings_query(scope):
 def residential_buildings_with_service_level_query(scope):
   if scope == "Lozenec":
     return LOZENEC_RESIDENTIALS_SERVISE_LEVEL_SQL
-  return "Implement me!"
-
-def poi_parks_query(scope):
-  if scope == "Lozenec":
-    return POI_PARKS_BUFFERED_LOZENEC_SQL
-  return POI_PARKS_SQL
-
-def poi_schools_query(scope):
-  if scope == "Lozenec":
-    return POI_SCHOOLS_BUFFERED_LOZENEC_SQL
   return "Implement me!"
 
 def buffered_region_boundary(scope):
