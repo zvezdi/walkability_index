@@ -7,6 +7,7 @@ def db_engine(connection_string):
 def db_execute(engine, sql):
   with engine.connect() as conn:
     conn.execute(text(sql))
+    conn.commit()
 
 def gdf_from_sql(connection, query, geom_column = 'geom'):
   return gpd.read_postgis(query, connection, geom_col=geom_column)

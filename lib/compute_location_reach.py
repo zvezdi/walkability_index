@@ -19,9 +19,8 @@ def compute_poi_absolute_reach(pedestrian_network, gdf_points_of_interest, gdf_r
     accessible_nodes = nearby_nodes(pedestrian_network, poi_node, weight_type, max_weight)
     serviced_buildings = gdf_residential_buildings[gdf_residential_buildings["snapped_to_node"].apply(lambda x: x in accessible_nodes)]
 
-    if serviced_buildings.empty:
-      # TODO: Mark the POIs that do not serve any buildings, will be interesting to investigate them
-      continue
+    # if serviced_buildings.empty:
+    #   # TODO: Mark the POIs that do not serve any buildings, will be interesting to investigate them
 
     poi_reach.append({
       'id': poi.id,
@@ -57,9 +56,8 @@ def compute_poi_reach(pedestrian_network, gdf_points_of_interest, gdf_residentia
     accessibility_polygon = accessibility_area(pedestrian_network_copy, poi_aprox_node_id, weight_type, max_weight)
     serviced_buildings = within_accessibility_area(accessibility_polygon, gdf_residential_buildings)
 
-    if serviced_buildings.empty:
-      # TODO: Mark the POIs that do not serve any buildings, will be interesting to investigate them
-      continue
+    # if serviced_buildings.empty:
+    #   # TODO: Mark the POIs that do not serve any buildings, will be interesting to investigate them
 
     poi_reach.append({
       'id': poi.id,

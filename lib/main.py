@@ -12,10 +12,10 @@ import networkx as nx
 # Load environment variables from a .env file
 load_dotenv()
 
-def create_regions_with_service_level(database, type):
+def create_regions_with_service_level(database, tables_sufix):
   sql = f"""
-    DROP TABLE IF EXISTS zvezdi_work.results_gen_adm_regions_service_level;
-    CREATE TABLE zvezdi_work.results_gen_adm_regions_service_level AS
+    DROP TABLE IF EXISTS zvezdi_work.results_gen_adm_regions_service_level_{tables_sufix};
+    CREATE TABLE zvezdi_work.results_gen_adm_regions_service_level_{tables_sufix} AS
     SELECT gar.id,
       gar.obns_lat,
       gar.geom,
@@ -25,7 +25,7 @@ def create_regions_with_service_level(database, type):
       sum(rrsl.service_index_pca * rrsl.appcount) / sum(rrsl.appcount) as weighted_service_index_pca,
       sum(rrsl.appcount) as appcount,
       count(rrsl.id) as buildings_count
-    FROM zvezdi_work.results_residentials_service_level rrsl, zvezdi_work.gen_adm_regions gar 
+    FROM zvezdi_work.results_residentials_service_level_{tables_sufix} rrsl, zvezdi_work.gen_adm_regions gar 
     WHERE ST_Contains(gar.geom, rrsl.geom)
     GROUP BY gar.id, gar.obns_lat, gar.geom
   """
@@ -44,6 +44,7 @@ def compute_isochron_accesibilities(gdf_pedestrian_network, pois, gdf_residentia
 
   # Create tables for each POI with the number of buildings/appartments within reach
   for poi_type, poi_gdf in pois.items():
+    print(f"Working on {poi_type}")
     gdf_poi_reach = compute_poi_reach(
       pedestrian_network,
       poi_gdf,
@@ -85,6 +86,7 @@ def compute_absolute_accesibilities(gdf_pedestrian_network, pois, gdf_residentia
   
   # Create tables for each POI with the number of buildings/appartments within reach
   for poi_type, poi_gdf in pois.items():
+    print(f"Working on {poi_type}")
     gdf_poi_reach = compute_poi_absolute_reach(
       pedestrian_network,
       poi_gdf,
@@ -140,6 +142,7 @@ def main():
     schema = SCHEMA,
     tables_sufix = "isochron",
   )
+  create_regions_with_service_level(database, "isochron")
 
   compute_absolute_accesibilities(
     gdf_pedestrian_network,
@@ -151,8 +154,7 @@ def main():
     schema = SCHEMA,
     tables_sufix = "absolute",
   )
-
-  create_regions_with_service_level(database, type="isochron")
+  create_regions_with_service_level(database, "absolute")
 
 if __name__ == "__main__":
   main()
