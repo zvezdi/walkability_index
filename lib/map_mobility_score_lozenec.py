@@ -6,124 +6,150 @@ from queries import residential_buildings_with_service_level_query, poi_reach_qu
 
 import folium
 from folium.plugins import MarkerCluster
-import itertools
 from helpers import crs_transform_coords, crs_transform_polygon
 from shapely import wkt
+from matplotlib.colors import LinearSegmentedColormap
+import matplotlib.colors
 
 import os
 from dotenv import load_dotenv
 
-COLOR_MAPPING = {
-  0: 'RGB(180, 40, 40)',
-  10: 'RGB(180, 40, 40)',
-  20: 'RGB(230, 40, 40)',
-  30: 'RGB(212, 146, 15)',
-  40: 'RGB(230, 178, 76)',
-  50: 'RGB(230, 230, 28)',
-  60: 'RGB(172, 204, 67)',
-  70: 'RGB(147, 179, 43)',
-  80: 'RGB(129, 161, 24)',
-  90: 'RGB(125, 153, 32)',
-  100: 'RGB(93, 117, 12)',
-}
+def create_colormap(colors):
+  colormap = LinearSegmentedColormap.from_list('custom_gradient', colors, N=100)
+  
+  return colormap
 
-def color_for(value):
-  for (prev_cutoff, prev_color), (curr_cutoff, curr_color) in itertools.pairwise(sorted(COLOR_MAPPING.items())):
-    if value >= prev_cutoff and value < curr_cutoff:
-      return curr_color
-  return 'black'
+def color_for(value, colormap):
+  # Normalize the value to be between 0 and 1
+  normalized_value = value / 100.0
+  # Get the RGBA color from the colormap
+  rgba_color = colormap(normalized_value)
+  # Convert RGBA to a hex color
+  hex_color = matplotlib.colors.rgb2hex(rgba_color)
 
-def create_legend(color_mapping):
-  # Create legend
-  legend_html = '''
-  <div style="position: fixed; 
-              bottom: 50px; left: 50px; width: 150px; height: auto; 
-              background-color: white; border:2px solid grey; z-index:9999; font-size:14px;
-              padding: 10px; line-height:18px;">
-  &nbsp; <b>Walkability Index</b> <br>
+  return hex_color
+
+def create_legend(colors):
+  colors_string = ', '.join(colors)  
+  legend_html = f'''
+    <div style="position: fixed; 
+                bottom: 50px; left: 50px; width: 200px; height: 20px; 
+                background: linear-gradient(to right, {colors_string});
+                z-index:9999; font-size:14px;"
+          onmousemove="showValue(event)" onmouseout="hideValue()">
+    </div>
+    <div style="position: fixed; 
+                bottom: 30px; left: 50px; width: 200px; height: 20px; 
+                background: white; color: black; text-align: center; z-index:9999; font-size:14px;">
+                Walkability index
+    </div>
+    <div id="hoverValue" style="position: fixed; 
+                bottom: 70px; left: 50px; width: 50px; height: 20px; 
+                background: rgba(255, 255, 255, 0.8); color: black; text-align: center; z-index:9999; font-size:14px; display: none;">
+    </div>
+    <script>
+        function showValue(event) {{
+            var element = document.querySelector('[onmousemove]');
+            var rect = element.getBoundingClientRect();
+            var offsetX = event.clientX - rect.left;
+            var value = Math.round((offsetX / rect.width) * 100);
+            var hoverValue = document.getElementById('hoverValue');
+            hoverValue.style.left = (event.clientX + 10) + 'px';
+            hoverValue.style.display = 'block';
+            hoverValue.innerHTML = value;
+        }}
+        function hideValue() {{
+            var hoverValue = document.getElementById('hoverValue');
+            hoverValue.style.display = 'none';
+        }}
+    </script>
   '''
-
-  for (prev_value, _prev_color), (curr_value, curr_color) in itertools.pairwise(color_mapping.items()):
-      legend_html += f'''
-      &nbsp; <i style="background:{curr_color}; width: 12px; height: 12px; float: left; margin-right: 8px; opacity: 1;"></i> {prev_value} - {curr_value} <br>
-      '''
-
-  legend_html += '</div>'
 
   return legend_html
 
-def popup(content):
-  html = f"""
-    <div style="width: 200px; text-align: center;">
-      {content}
-    </div>
+def popup(content_dict):
+  html = """
+  <div style="border-radius: 5px; background-color: white;">
   """
+
+  for key, value in content_dict.items():
+      html += f"""
+      <div style="padding: 5px 0; display: flex; flex-wrap: nowrap; justify-content: space-between; gap: 2rem;">
+        <span style="font-weight: bold; text-wrap: nowrap;">{key}:</span> <span style="text-wrap: nowrap">{value}</span>
+      </div>
+      """
+
+  html += "</div>"
+
   return html
 
-def residentials_service_level_layer(gdf_residentials_service_levels, color_metric=None, show=True):
+def residentials_service_level_layer(gdf_residentials_service_levels, color_map, color_metric=None, show=True):
   residentials_cluster = MarkerCluster(name = f"Residential buildings {color_metric}", show=show)
   for idx, row in gdf_residentials_service_levels.iterrows():
     lon, lat = crs_transform_coords(row["geom"].x, row["geom"].y)
     marker = folium.CircleMarker(
       location = [lat, lon],
       radius = 5,
-      color = color_for(round(row[color_metric])),
+      color = color_for(round(row[color_metric]), color_map),
       fill = True,
-      fill_color = color_for(round(row[color_metric])),
+      fill_color = color_for(round(row[color_metric]), color_map),
       fill_opacity = 1,
-      popup = popup(f"""
-        Service level Systematic: <b>{round(row['service_index'], 2)}</b><br>
-        Service level PCA: <b>{round(row['service_index_pca'], 2)}</b><br>
-        Floors: {row['floorcount']}<br>
-        Apps: {row['appcount']}
-      """)
+      popup = popup({
+        "Service level Systematic": round(row['service_index'], 2),
+        "Service level PCA": round(row['service_index_pca'], 2),
+        "Floors": row['floorcount'],
+        "Apps": row['appcount'],
+      })
     )
     marker.add_to(residentials_cluster)
 
   return residentials_cluster
 
-def ge_service_level_layer(gdf_ge_service_levels, color_metric=None, show=True):
+def ge_service_level_layer(gdf_ge_service_levels, color_map, color_metric=None, show=True):
   ge_layer = folium.FeatureGroup(name=f"GE {color_metric}", show=show)
   for _idx, ge in gdf_ge_service_levels.iterrows():
     ge_4326 = crs_transform_multipolygon(ge.geom)
     for polygon in list(ge_4326.geoms):
       folium.Polygon(
         locations = [(lat, lon) for lon, lat in polygon.exterior.coords], 
-        color = color_for(round(ge[color_metric])),
+        color = color_for(round(ge[color_metric]), color_map),
         fill = True,
-        fill_color = color_for(round(ge[color_metric])),
+        fill_color = color_for(round(ge[color_metric]), color_map),
         fill_opacity = 0.5,
-        popup = popup(f"""{ge.regname}({ge.rajon})<br>
-          Index Systematic: {round(ge.service_index, 2)}<br>
-          Weighted Index Systematic: {round(ge.weighted_service_index, 2)}<br>
-          Index PCA: {round(ge.service_index_pca, 2)}<br>
-          Weighted Index PCA: {round(ge.weighted_service_index_pca, 2)}<br>
-          Buildings: {round(ge.buildings_count)}<br>
-          Apps: {round(ge.appcount)}
-        """)
+        popup = popup({
+          "Region": ge.regname,
+          "Municipality": ge.rajon,
+          "Index Systematic": round(ge.service_index, 2),
+          "Weighted Index Systematic": round(ge.weighted_service_index, 2),
+          "Index PCA": round(ge.service_index_pca, 2),
+          "Weighted Index PCA": round(ge.weighted_service_index_pca, 2),
+          "Buildings": round(ge.buildings_count),
+          "Apps": round(ge.appcount),
+        })
       ).add_to(ge_layer)
 
   return ge_layer
 
-def adm_regions_service_level_layer(gdf_adm_regions_service_levels, color_metric=None, show=True):
+def adm_regions_service_level_layer(gdf_adm_regions_service_levels, color_map, color_metric=None, show=True):
   adm_regions_layer = folium.FeatureGroup(name=f"Administrative Regions {color_metric}", show=show)
   for _idx, region in gdf_adm_regions_service_levels.iterrows():
     region_4326 = crs_transform_multipolygon(region.geom)
     for polygon in list(region_4326.geoms):
       folium.Polygon(
         locations = [(lat, lon) for lon, lat in polygon.exterior.coords], 
-        color = color_for(round(region[color_metric])),
+        color = color_for(round(region[color_metric]), color_map),
         fill = True,
-        fill_color = color_for(round(region[color_metric])),
+        fill_color = color_for(round(region[color_metric]), color_map),
         fill_opacity = 0.5,
-        popup = popup(f"""{region.obns_lat}<br>
-          Index Systematic: {round(region.service_index, 2)}<br>
-          Weighted Index Systematic: {round(region.weighted_service_index, 2)}<br>
-          Index PCA: {round(region.service_index_pca, 2)}<br>
-          Weighted Index PCA: {round(region.weighted_service_index_pca, 2)}<br>
-          Buildings: {round(region.buildings_count)}<br>
-          Apps: {round(region.appcount)}
-        """)
+        popup = popup({
+          "Municipality": region.obns_lat,
+          "Index Systematic": round(region.service_index, 2),
+          "Weighted Index Systematic": round(region.weighted_service_index, 2),
+          "Index PCA": round(region.service_index_pca, 2),
+          "Weighted Index PCA": round(region.weighted_service_index_pca, 2),
+          "Buildings": round(region.buildings_count),
+          "Apps": round(region.appcount),
+        })
       ).add_to(adm_regions_layer)
 
   return adm_regions_layer
@@ -143,11 +169,11 @@ def poi_reach_layer(poi_type, gdf_poi_reach, draw_isochron=False):
       fill=True,
       fill_color='#426e0e',
       fill_opacity=1,
-      popup=popup(f"""
-        <b>{row['subgroup']}</b><br>
-        Buildings within reach: {row['buildings_within_reach']}<br>
-        Appartments within reach: {row['appartments_within_reach']}
-      """)
+      popup=popup({
+        "Subgroup": row['subgroup'],
+        "Buildings within reach": row['buildings_within_reach'],
+        "Appartments within reach": row['appartments_within_reach'],
+      })
     )
     marker.add_to(poi_cluster)
 
@@ -158,7 +184,10 @@ def poi_reach_layer(poi_type, gdf_poi_reach, draw_isochron=False):
       folium.GeoJson(
         polygon_geometry.__geo_interface__,
         style_function = lambda x: {'fillColor': '#7fb045', 'fillOpacity': 0.1, 'weight': 2, 'color': '#719c3e'},
-        popup = popup(f"""<b>{row['subgroup']}</b><br>Point({point.x}, {point.y})"""),
+        popup = popup({
+          "Subgroup": row['subgroup'],
+          "Coordinates": f"Point({point.x}, {point.y})"
+        }),
         show = True
       ).add_to(poi_cluster)
   
@@ -179,19 +208,25 @@ with database.connect() as db_connection:
 center_lon, center_lat = crs_transform_coords(gdf_residential_buildings_service_levels_lozenec.geometry.x.mean(), gdf_residential_buildings_service_levels_lozenec.geometry.y.mean())
 map = folium.Map(location=[center_lat, center_lon], zoom_start=14)
 
+# Add legend
+colors = ['maroon', 'chocolate', 'orange', 'gold', 'yellowgreen', 'forestgreen', 'darkgreen']
+color_map = create_colormap(colors)
+legend = create_legend(colors)
+map.get_root().html.add_child(folium.Element(legend))
+
 # Layers
-residentials_layer = residentials_service_level_layer(gdf_residential_buildings_service_levels_lozenec, color_metric="service_index", show=True)
-residentials_layer_pca = residentials_service_level_layer(gdf_residential_buildings_service_levels_lozenec, color_metric="service_index_pca", show=False)
+residentials_layer = residentials_service_level_layer(gdf_residential_buildings_service_levels_lozenec, color_map, color_metric="service_index", show=True)
+residentials_layer_pca = residentials_service_level_layer(gdf_residential_buildings_service_levels_lozenec, color_map, color_metric="service_index_pca", show=False)
 residentials_layer.add_to(map)
 residentials_layer_pca.add_to(map)
 
-ge_layer = ge_service_level_layer(gdf_ge_service_level, color_metric="weighted_service_index", show=False)
-ge_layer_pca = ge_service_level_layer(gdf_ge_service_level, color_metric="weighted_service_index_pca", show=False)
+ge_layer = ge_service_level_layer(gdf_ge_service_level, color_map, color_metric="weighted_service_index", show=False)
+ge_layer_pca = ge_service_level_layer(gdf_ge_service_level, color_map, color_metric="weighted_service_index_pca", show=False)
 ge_layer.add_to(map)
 ge_layer_pca.add_to(map)
 
-adm_regions_layer = adm_regions_service_level_layer(gdf_adm_regions_service_levels, color_metric="weighted_service_index", show=True)
-adm_regions_layer_pca = adm_regions_service_level_layer(gdf_adm_regions_service_levels, color_metric="weighted_service_index_pca", show=False)
+adm_regions_layer = adm_regions_service_level_layer(gdf_adm_regions_service_levels, color_map, color_metric="weighted_service_index", show=True)
+adm_regions_layer_pca = adm_regions_service_level_layer(gdf_adm_regions_service_levels, color_map, color_metric="weighted_service_index_pca", show=False)
 adm_regions_layer.add_to(map)
 adm_regions_layer_pca.add_to(map)
 
@@ -208,14 +243,11 @@ with database.connect() as db_connection:
     }
 
 for poi_type, gdf_poi_reach in pois.items():
-  poi_layer = poi_reach_layer(poi_type, gdf_poi_reach)
+  poi_layer = poi_reach_layer(poi_type, gdf_poi_reach, draw_isochron=False)
   poi_layer.add_to(map)
 
 # Add Layer Control to the map
 folium.LayerControl().add_to(map)
-# Add legend
-legend = create_legend(COLOR_MAPPING)
-map.get_root().html.add_child(folium.Element(legend))
 
 # Display the map
 map.save('lib/saves/map_lozenec_service_level.html')
