@@ -48,7 +48,7 @@ class App < Sinatra::Base
     end
   end
 
-  get '/' do
+  get '/service_level_absolute' do
     db = settings.db_connection
 
     @admin_regions = db.exec("SELECT ST_AsGeoJSON(ST_Transform(geom, 4326)) AS geojson, * FROM zvezdi_work.results_gen_adm_regions_service_level_absolute").to_a.map do |region|
@@ -83,8 +83,74 @@ class App < Sinatra::Base
 
     @colors = COLORS
     @legend_html = create_legend_html(COLORS)
-    @colored_metric = 'weighted_service_index'
+    if params[:weighted] == "true" 
+      if params[:pca] == "true"
+        @colored_metric = 'weighted_service_index_pca' 
+      else
+        @colored_metric = 'weighted_service_index'
+      end
+    else
+      if params[:pca] == "true"
+        @colored_metric = 'service_index_pca' 
+      else
+        @colored_metric = 'service_index'
+      end
+    end
+    print(params)
     erb :index, layout: :layout
   end
+
+  get '/service_level_isochron' do
+    db = settings.db_connection
+
+    @admin_regions = db.exec("SELECT ST_AsGeoJSON(ST_Transform(geom, 4326)) AS geojson, * FROM zvezdi_work.results_gen_adm_regions_service_level_isochron").to_a.map do |region|
+      geom = swap_coordinates(RGeo::GeoJSON.decode(region['geojson'], json_parser: :json))
+      geojson = JSON.generate(geom)
+
+      region.merge!({
+        geom: geom,
+        geojson: geojson,
+      })
+    end
+
+    @ge_rajons = db.exec("SELECT ST_AsGeoJSON(ST_Transform(geom, 4326)) AS geojson, * FROM zvezdi_work.results_ge_service_level_isochron").to_a.map do |ge|
+      geom = swap_coordinates(RGeo::GeoJSON.decode(ge['geojson'], json_parser: :json))
+      geojson = JSON.generate(geom)
+
+      ge.merge!({
+        geom: geom,
+        geojson: geojson,
+      })
+    end
+
+    @residential_buildings = db.exec("SELECT ST_AsGeoJSON(ST_Transform(geom, 4326)) AS geojson, * FROM zvezdi_work.results_residentials_service_level_isochron").to_a.map do |building|
+      geom = swap_coordinates(RGeo::GeoJSON.decode(building['geojson'], json_parser: :json))
+      geojson = JSON.generate(geom)
+
+      building.merge!({
+        geom: geom,
+        geojson: geojson,
+      })
+    end
+
+    @colors = COLORS
+    @legend_html = create_legend_html(COLORS)
+    if params[:weighted] == "true" 
+      if params[:pca] == "true"
+        @colored_metric = 'weighted_service_index_pca' 
+      else
+        @colored_metric = 'weighted_service_index'
+      end
+    else
+      if params[:pca] == "true"
+        @colored_metric = 'service_index_pca' 
+      else
+        @colored_metric = 'service_index'
+      end
+    end
+    print(params)
+    erb :index, layout: :layout
+  end
+  
   
 end
