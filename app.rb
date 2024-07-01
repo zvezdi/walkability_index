@@ -1,50 +1,90 @@
 require 'sinatra/base'
 require 'pry'
+require 'pg'
+require 'json'
+require 'dotenv/load'
+require 'rgeo'
+require 'rgeo/geo_json'
+
+require_relative 'helpers'
 
 class App < Sinatra::Base
   configure :production, :development do
     enable :logging
   end
 
-  require 'pg'
+  set :public_folder, 'public'
 
-  before do
-    @connection = PG.connect(
-      host: "",
-      port: "",
-      dbname: "",
-      user: "",
-      password: ""
-    )
+  require 'uri'
+
+  configure do
+    encoded_password = URI.encode_www_form_component(ENV['password'])
+    connection_string = "postgresql://#{ENV['username']}:#{encoded_password}@#{ENV['host']}:#{ENV['port']}/#{ENV['dbname']}"
+    conn = PG.connect(connection_string)
+    set :db_connection, conn
+    # set :rgeo_factory, RGeo::Geographic.spherical_factory(srid: 4326)
+    # set :mercator_factory, RGeo::Geographic.simple_mercator_factory(srid: 4326)
   end
 
-  after do
-    @connection.close
+  COLORS = ['maroon', 'chocolate', 'orange', 'gold', 'yellowgreen', 'forestgreen', 'darkgreen']
+
+  # Function to swap coordinates for various geometry types
+  def swap_coordinates(geometry)
+    case geometry
+    when RGeo::Feature::Point
+      geometry.factory.point(geometry.y, geometry.x)
+    when RGeo::Feature::LineString, RGeo::Feature::LinearRing
+      points = geometry.points.map { |point| geometry.factory.point(point.y, point.x) }
+      geometry.factory.line_string(points)
+    when RGeo::Feature::Polygon
+      exterior_ring = swap_coordinates(geometry.exterior_ring)
+      interior_rings = geometry.interior_rings.map { |ring| swap_coordinates(ring) }
+      geometry.factory.polygon(exterior_ring, interior_rings)
+    when RGeo::Feature::MultiPolygon
+      polygons = geometry.map { |polygon| swap_coordinates(polygon) }
+      geometry.factory.multi_polygon(polygons)
+    else
+      geometry
+    end
   end
 
   get '/' do
-    results = @connection.exec(
-      <<~SQL
-        SELECT jsonb_build_object(
-          'type',       'Feature',
-          'id',         id,
-          'geometry',   ST_AsGeoJSON(ST_Transform(geom, 4283))::jsonb,
-          'properties', to_jsonb(row) - 'id' - 'geom'
-        ) as poi FROM (SELECT * FROM poi_schools) row;
-      SQL
-    )
+    db = settings.db_connection
 
-    @pois = results.map do |poi|
-      as_hash = JSON.parse(poi["poi"])
-      properties = as_hash["properties"]
-      json_geom = JSON.generate(as_hash["geometry"])
-      as_hash["geometry"] = json_geom
-      as_hash["properties"] = properties
+    @admin_regions = db.exec("SELECT ST_AsGeoJSON(ST_Transform(geom, 4326)) AS geojson, * FROM zvezdi_work.results_gen_adm_regions_service_level_absolute").to_a.map do |region|
+      geom = swap_coordinates(RGeo::GeoJSON.decode(region['geojson'], json_parser: :json))
+      geojson = JSON.generate(geom)
 
-      as_hash
+      region.merge!({
+        geom: geom,
+        geojson: geojson,
+      })
     end
 
-    erb :index
+    @ge_rajons = db.exec("SELECT ST_AsGeoJSON(ST_Transform(geom, 4326)) AS geojson, * FROM zvezdi_work.results_ge_service_level_absolute").to_a.map do |ge|
+      geom = swap_coordinates(RGeo::GeoJSON.decode(ge['geojson'], json_parser: :json))
+      geojson = JSON.generate(geom)
+
+      ge.merge!({
+        geom: geom,
+        geojson: geojson,
+      })
+    end
+
+    @residential_buildings = db.exec("SELECT ST_AsGeoJSON(ST_Transform(geom, 4326)) AS geojson, * FROM zvezdi_work.results_residentials_service_level_absolute").to_a.map do |building|
+      geom = swap_coordinates(RGeo::GeoJSON.decode(building['geojson'], json_parser: :json))
+      geojson = JSON.generate(geom)
+
+      building.merge!({
+        geom: geom,
+        geojson: geojson,
+      })
+    end
+
+    @colors = COLORS
+    @legend_html = create_legend_html(COLORS)
+    @colored_metric = 'weighted_service_index'
+    erb :index, layout: :layout
   end
   
 end

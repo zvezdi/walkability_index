@@ -1,0 +1,149 @@
+<div id="map" style="width: 100%; height: 1000px;">
+  <%= @legend_html%>
+</div>
+<%=@colors%>
+<script>
+  var map = L.map('map').setView([<%= @residential_buildings.first[:geom].x %>, <%= @residential_buildings.first[:geom].y %>], 14);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 18,
+  }).addTo(map);
+
+  function createPopup(properties) {
+    var popupContent = '<div style="border-radius: 5px; background-color: white;">';
+    for (var key in properties) {
+      if (properties.hasOwnProperty(key)) {
+        popupContent += '<div style="padding: 5px 0; display: flex; justify-content: space-between;">';
+        popupContent += '<span style="font-weight: bold;">' + key + ':</span> <span>' + properties[key] + '</span>';
+        popupContent += '</div>';
+      }
+    }
+    popupContent += '</div>';
+    return popupContent;
+  }
+
+  function addResidentialBuildingsCluster() {
+    var residentialBuildingsLayer = L.markerClusterGroup();
+    <% @residential_buildings.each do |building| %>
+      var building = <%= building.to_json %>;
+      var marker = L.circleMarker([<%=building[:geom].x%>, <%=building[:geom].y%>], {
+        radius: 5,
+        fill: true,
+        fillOpacity: 1,
+      }).bindPopup(createPopup(
+        {
+        'Service level Systematic': <%=building['service_index'].to_f.round(2)%>,
+        'Service level PCA': <%=building['service_index_pca'].to_f.round(2)%>,
+        'Floors': <%=building['floorcount']%>,
+        'Apps': <%=building['appcount']%>
+        })).addTo(residentialBuildingsLayer);
+    <% end %>
+    return residentialBuildingsLayer;
+  }
+
+  function addResidentialBuildings() {
+    var residentialBuildingsLayer = L.featureGroup();
+    <% @residential_buildings.each do |building| %>
+      var building = <%= building.to_json %>;
+      var marker = L.circleMarker([<%=building[:geom].x%>, <%=building[:geom].y%>], {
+        radius: 5,
+        color: "<%=color_for(building['service_index'], @colors)%>",
+        fill: true,
+        fillColor: "<%=color_for(building['service_index'], @colors)%>",
+        fillOpacity: 1,
+      }).bindPopup(createPopup(
+        {
+        'Service level Systematic': <%=building['service_index'].to_f.round(2)%>,
+        'Service level PCA': <%=building['service_index_pca'].to_f.round(2)%>,
+        'Weighted Service level Systematic': <%=building['weighted_service_index'].to_f.round(2)%>,
+        'Weighted Service level PCA': <%=building['weighted_service_index_pca'].to_f.round(2)%>,
+        'Floors': <%=building['floorcount']%>,
+        'Apps': <%=building['appcount']%>
+        })).addTo(residentialBuildingsLayer);
+    <% end %>
+    return residentialBuildingsLayer;
+  }
+
+  function addAdminRegions() {
+    var adminRegionsLayer = L.featureGroup();
+    <% @admin_regions.each do |region| %>
+      var region = <%= region.to_json %>;
+      var geom = <%= region['geojson']%>;
+      L.geoJSON(geom, {
+        style: function (feature) {
+          return {
+            color: "<%=color_for(region[@colored_metric], @colors)%>",
+            fillOpacity: 0.5
+          };
+        }
+      }).bindPopup(createPopup({
+        "Municipality": "<%=region["obns_lat"]%>",
+        "Index Systematic": <%=region["service_index"].to_f.round(2)%>,
+        "Weighted Index Systematic": <%=region["weighted_service_index"].to_f.round(2)%>,
+        "Index PCA": <%=region["service_index_pca"].to_f.round(2)%>,
+        "Weighted Index PCA": <%=region["weighted_service_index_pca"].to_f.round(2)%>,
+        "Buildings": <%=region["buildings_count"]%>,
+        "Apps": <%=region["appcount"]%>,
+      })).addTo(adminRegionsLayer);
+    <% end %>
+    return adminRegionsLayer;
+  }
+
+  function addGeRajons() {
+    var geRajonLayer = L.featureGroup();
+    <% @ge_rajons.each do |ge| %>
+      var geom = <%= ge['geojson']%>;
+      L.geoJSON(geom, {
+        style: function (feature) {
+          return {
+            color: "<%=color_for(ge[@colored_metric], @colors)%>",
+            fillOpacity: 0.5
+          };
+        }
+      }).bindPopup(createPopup({
+        "Region": "<%=ge['regname']%>",
+        "Municipality": "<%=ge['rajon']%>",
+        "Index Systematic": <%=ge['service_index'].to_f.round(2)%>,
+        "Weighted Index Systematic": <%=ge['weighted_service_index'].to_f.round(2)%>,
+        "Index PCA": <%=ge['service_index_pca'].to_f.round(2)%>,
+        "Weighted Index PCA": <%=ge['weighted_service_index_pca'].to_f.round(2)%>,
+        "Buildings": <%=ge['buildings_count']%>,
+        "Apps": <%=ge['appcount']%>
+      })).addTo(geRajonLayer);
+    <% end %>
+    return geRajonLayer;
+  }
+
+
+  var residentialBuildingsClusterLayer = addResidentialBuildingsCluster();
+  var residentialBuildingsLayer = addResidentialBuildings();
+  var adminRegionsLayer = addAdminRegions();
+  var geRajonLayer = addGeRajons();
+
+  map.addLayer(residentialBuildingsClusterLayer);
+  map.addLayer(adminRegionsLayer);
+ 
+  map.on('zoomend', function() {
+    var zoomLevel = map.getZoom();
+    if (zoomLevel < 14) {
+      map.removeLayer(residentialBuildingsLayer);
+      map.removeLayer(geRajonLayer);
+      map.addLayer(residentialBuildingsClusterLayer);
+      map.addLayer(adminRegionsLayer);
+    } else if (zoomLevel >= 14 && zoomLevel < 16) {
+      map.removeLayer(residentialBuildingsLayer);
+      map.removeLayer(adminRegionsLayer);
+      map.addLayer(geRajonLayer);
+      map.addLayer(residentialBuildingsClusterLayer);
+    } else if (zoomLevel >= 16) {
+      map.removeLayer(residentialBuildingsClusterLayer)
+      map.removeLayer(adminRegionsLayer);
+      map.addLayer(residentialBuildingsLayer);
+      map.addLayer(geRajonLayer);
+    }
+  });
+
+  map.on('zoomend', function() {
+    var zoomLevel = map.getZoom();
+    console.log("Current zoom level: " + zoomLevel);
+  });
+</script>

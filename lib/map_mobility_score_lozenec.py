@@ -249,6 +249,82 @@ for poi_type, gdf_poi_reach in pois.items():
 # Add Layer Control to the map
 folium.LayerControl().add_to(map)
 
+# Extract the map's unique ID to reference it in JavaScript
+map_id = map.get_name()
+
+# JavaScript code to manage clustering based on zoom level
+change_data_on_zoom = f"""
+<script>
+    document.addEventListener('DOMContentLoaded', function() {{
+        var map = {map_id};
+        var clusterGroup = map._layers[Object.keys(map._layers).find(key => map._layers[key].hasOwnProperty('_markerCluster'))];
+        map.on('zoomend', function () {{
+            var zoomLevel = map.getZoom();
+            if (zoomLevel >= 13) {{
+                var markers = clusterGroup.getLayers();
+                clusterGroup.clearLayers();
+                markers.forEach(function(marker) {{
+                    marker.addTo(map);
+                }});
+            }} else {{
+                console.log(zoomLevel);
+                var markers = [];
+                map.eachLayer(function(layer) {{
+                    if (layer instanceof L.Marker && !(layer instanceof L.MarkerCluster)) {{
+                        markers.push(layer);
+                    }}
+                }});
+                markers.forEach(function(marker) {{
+                    map.removeLayer(marker);
+                    clusterGroup.addLayer(marker);
+                }});
+                console.log(layer);
+                clusterGroup.addTo(map);
+            }}
+        }});
+    }});
+</script>
+"""
+
+toggle_layers_js_code = f"""
+<script>
+    document.addEventListener('DOMContentLoaded', function() {{
+        var map = {map_id};
+        var geLayerName = 'GE weighted_service_index';
+        var admRegionsLayerName = 'Administrative Regions weighted_service_index';
+
+        map.on('zoomend', function () {{
+            var zoomLevel = map.getZoom();
+            console.log(zoomLevel)
+            map.eachLayer(function(layer) {{
+                console.log(layer)
+                console.log(layer.name)
+                if (layer.options.name === geLayerName) {{
+                    if (zoomLevel <= 13) {{
+                        map.addLayer(layer);
+                    }} else {{
+                        map.removeLayer(layer);
+                    }}
+                }}
+                if (layer.options.name === admRegionsLayerName) {{
+                    if (zoomLevel <= 13) {{
+                        map.removeLayer(layer);
+                    }} else {{
+                        map.addLayer(layer);
+                    }}
+                }}
+            }});
+        }});
+    }});
+</script>
+"""
+
+
+# Add the JavaScript to the map
+map.get_root().html.add_child(folium.Element(change_data_on_zoom))
+map.get_root().html.add_child(folium.Element(toggle_layers_js_code))
+
+
 # Display the map
 map.save('lib/saves/map_lozenec_service_level.html')
 map
